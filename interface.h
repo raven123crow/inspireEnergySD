@@ -349,7 +349,8 @@ void displayData (int pg, battery data) {
       		tft.print("\n");
 			
 			tft.print("Abs SoC     : ");
-			tft.print(" 81.2 %\n"); 
+			tft.print(data.AbsoluteStateOfCharge.value);
+			tft.print(" %\n"); 
 
 			tft.print("Device Chem : ");
 			displayBlock(data.DeviceChemistry);

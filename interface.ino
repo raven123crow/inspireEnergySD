@@ -24,6 +24,8 @@ void loop(){
 	getParam_U(AT_RATE_TIME_TO_FULL, &batteryData.AtRateTimeToFull);
 	getParam_U(AT_RATE_TIME_TO_EMPTY, &batteryData.AtRateTimeToEmpty);
 	getParam_U(AT_RATE_OK, &batteryData.AtRateOK);
+
+	getParam_U(ABSOLUTE_STATE_OF_CHARGE, &batteryData.AbsoluteStateOfCharge);
 	getParam_B(b_DEVICE_CHEMISTRY, &batteryData.DeviceChemistry);
 	displayData(currentPage,batteryData);
 	ts.sample();
