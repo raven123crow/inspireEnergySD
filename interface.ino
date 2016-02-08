@@ -8,24 +8,8 @@ void setup(){
 }
 battery batteryData;
 void loop(){
-	getParam_B(b_DEVICE_NAME, &batteryData.DeviceName);
-	getParam_U(SERIAL_NUMBER, &batteryData.SerialNumber);
-	getParam_S(s_CURRENT, &batteryData.Current);
-	getParam_U(VOLTAGE, &batteryData.Voltage);
-	getParam_U(TEMPERATURE,&batteryData.Temperature);
-	getParam_U(DESIGN_CAPACITY, &batteryData.DesignCapacity);
-	getParam_U(RELATIVE_STATE_OF_CHARGE, &batteryData.RelativeStateOfCharge);
-	getParam_U(FULL_CHARGE_CAPACITY, &batteryData.FullChargeCapacity);
-	getParam_U(MANUFACTURER_ACCESS, &batteryData.ManufacturerAccess);
-	getParam_U(REMAINING_CAPACITY_AlARM, &batteryData.RemainingCapacityAlarm);
-	getParam_U(REMAINING_TIME_ALARM, &batteryData.RemainingTimeAlarm);
-	getParam_U(BATTERY_MODE, &batteryData.BatteryMode);
-	getParam_S(s_AT_RATE, &batteryData.AtRate);
-	getParam_U(AT_RATE_TIME_TO_FULL, &batteryData.AtRateTimeToFull);
-	getParam_U(AT_RATE_TIME_TO_EMPTY, &batteryData.AtRateTimeToEmpty);
-	getParam_U(AT_RATE_OK, &batteryData.AtRateOK);
-	getParam_B(b_DEVICE_CHEMISTRY, &batteryData.DeviceChemistry);
-	displayData(currentPage,batteryData);
+	setBatteryParams();
+	displayData(g_currentPage,batteryData);
 	ts.sample();
 	isPressed = ts.isPressed();
 
@@ -35,10 +19,10 @@ void loop(){
 			displayButtons();
 			bluetoothStatusInfo();
 
-			currentPage++;
+			g_currentPage++;
 
-			if (currentPage > 1) {
-				currentPage = 0;				
+			if (g_currentPage > 2) {
+				g_currentPage = 0;				
 			} // end if
 		previousPressed = true;
 	} // end if 
@@ -47,3 +31,44 @@ void loop(){
 		previousPressed = false;
 	} // end if
 } // end loop
+
+void setBatteryParams(){
+	// page 1
+	setParam_B(b_DEVICE_NAME, &batteryData.DeviceName);
+	setParam_U(SERIAL_NUMBER, &batteryData.SerialNumber);
+	setParam_S(s_CURRENT, &batteryData.Current);
+	setParam_U(VOLTAGE, &batteryData.Voltage);
+	setParam_U(TEMPERATURE,&batteryData.Temperature);
+	setParam_U(DESIGN_CAPACITY, &batteryData.DesignCapacity);
+	setParam_U(RELATIVE_STATE_OF_CHARGE, &batteryData.RelativeStateOfCharge);
+	setParam_U(FULL_CHARGE_CAPACITY, &batteryData.FullChargeCapacity);
+	setParam_U(MANUFACTURER_ACCESS, &batteryData.ManufacturerAccess);
+	setParam_U(REMAINING_CAPACITY_AlARM, &batteryData.RemainingCapacityAlarm);
+	setParam_U(REMAINING_TIME_ALARM, &batteryData.RemainingTimeAlarm);
+	setParam_U(BATTERY_MODE, &batteryData.BatteryMode);
+	setParam_S(s_AT_RATE, &batteryData.AtRate);
+	setParam_U(AT_RATE_TIME_TO_FULL, &batteryData.AtRateTimeToFull);
+	setParam_U(AT_RATE_TIME_TO_EMPTY, &batteryData.AtRateTimeToEmpty);
+	setParam_U(AT_RATE_OK, &batteryData.AtRateOK);
+
+ 	// page 2
+	setParam_S(s_AVERAGE_CURRENT, &batteryData.AverageCurrent);
+	setParam_U(MAX_ERROR, &batteryData.MaxError);
+	setParam_U(ABSOLUTE_STATE_OF_CHARGE, &batteryData.AbsoluteStateOfCharge);
+	setParam_U(REMAINING_CAPACITY, &batteryData.RemainingCapacity);
+	setParam_U(RUNTIME_TO_EMPTY, &batteryData.RunTimeToEmpty);
+	setParam_U(AVERAGE_TIME_TO_EMPTY, &batteryData.AverageTimeToEmpty);
+	setParam_U(AVERAGE_TIME_TO_FULL, &batteryData.AverageTimeToFull);
+	setParam_U(CHARGING_CURRENT, &batteryData.ChargingCurrent);
+	setParam_U(CHARGING_VOLTAGE, &batteryData.ChargingVoltage);
+	setParam_U(BATTERY_STATUS, &batteryData.BatteryStatus);
+	setParam_U(CYCLE_COUNT, &batteryData.CycleCount);
+	setParam_U(DESIGN_VOLTAGE, &batteryData.DesignVoltage);
+	setParam_U(SPECIFICATION_INFO, &batteryData.SpecificationInfo);
+	setParam_U(MANUFACTURER_DATE, &batteryData.ManufacturerDate);
+	setParam_B(b_MANUFACTURER_NAME, &batteryData.ManufacturerName);
+	setParam_B(b_DEVICE_CHEMISTRY, &batteryData.DeviceChemistry);
+
+	// page 3
+	setParam_B(b_MANUFACTURER_DATA, &batteryData.ManufacturerData); 
+}

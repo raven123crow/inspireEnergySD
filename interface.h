@@ -19,12 +19,15 @@
 #define ONE 0x01                           // used to complete 2's complement
 #define BATTERY_ADDR 11                    // battery location  // battery i2c write address, the read address is (BattAddr + 1) 11 battery, 26 mcu
 #define CHAR_LENGTH 32                     // maximum character string for a Param_block read
+#define LAST_PAGE 3
+#define BYTE 8
+#define FLUSH getchar() != '\n'
 
 #define MANUFACTURER_ACCESS        0x00 
 #define REMAINING_CAPACITY_AlARM   0x01
 #define REMAINING_TIME_ALARM       0x02
 #define BATTERY_MODE               0x03
-#define s_AT_RATE                   0X04
+#define s_AT_RATE                  0X04
 #define AT_RATE_TIME_TO_FULL       0x05
 #define AT_RATE_TIME_TO_EMPTY      0x06
 #define AT_RATE_OK                 0X07
@@ -64,7 +67,7 @@ bool isPressed = false;
 bool previousPressed = false; 				// stores previous loops pressed value
 bool isPreviousPageCleared = 0;
 int pressure = 0;
-int currentPage = 0; 						// currently displayed page counter
+int g_currentPage = 1; 						// currently displayed page counter
 String s = " "; 
 
 /*********************Structure*************************************/
@@ -137,7 +140,7 @@ void bluetoothStatusInfo();
 void drawBtBoarder();
 void displayData (int pg);
 void displayBlock(Param_block pb);
-
+void showPage(int pg, battery data);
 
 /*********************Function Definitions*************************/
 
@@ -242,41 +245,87 @@ void drawBatteryBoarder(){
 void displayData (int pg, battery data) {
 	tft.setFont(Fonts::Liberation14);
 	tft.setTextColor(Color::Black, Color::White);
-
-/*
-	int page = 1;
 	
-	switch page {
+	switch (pg) {
 		case 1 :
-			showPage(1);
+			showPage(pg, data);
 		break;
 
 		case 2 :
-			showPage(2);
+			showPage(pg, data);
 		break;
 
 		case 3 :
-			showPage(3);
+			showPage(pg, data);
 		break;
 
-		case 4 :
-			showPage(4);
+		default :                 // This shouldn't happen, but just in case it does!
+			if (pg > LAST_PAGE) {  // currently in the last page circle back to first page
+				pg = 1;            // set to first page
+				showPage(pg, data);
+			} else {
+				pg = LAST_PAGE;    // currently in the first page circle back to last page
+				showPage(pg, data);
+			}
 		break;
+	}	
+}
+/*********************startBus()*********************************************/
+void startBus() {
+	Wire.begin(); 						// join i2c bus (address optional for master)
+}
 
-		case default :
-			page = 1;
-			showPage(1);
-		break;
-		
+void setParam_U(unsigned char cmd, Param_uword* pu) {
+	Wire.beginTransmission(BATTERY_ADDR);
+	Wire.write(cmd);
+	Wire.endTransmission();
+	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
+	pu->lsb = Wire.read();
+	pu->msb = Wire.read();
+    									// combine the MSB + LSB into one value for displaying
+	pu->value = pu->msb << BYTE;           // bit-shift the MSB to the left by 8 bits, moving it to the MSB position
+	pu->value = pu->value ^ pu->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
+}
+
+void setParam_S(unsigned char cmd, Param_sword* ps) {
+	Wire.beginTransmission(BATTERY_ADDR);
+	Wire.write(cmd);
+	Wire.endTransmission();
+	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
+	ps->lsb = Wire.read();
+	ps->msb = Wire.read();
+	ps->value = ps->msb << BYTE;
+	ps->value = ps->value ^ ps->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
+}
+
+void setParam_B(unsigned char cmd, Param_block* pb) {
+	Wire.beginTransmission(BATTERY_ADDR);
+	Wire.write(cmd);
+	Wire.endTransmission();
+	Wire.requestFrom(BATTERY_ADDR, 1);	 // request the first byte which holds the length of the character array
+	pb->len = Wire.read();
+	Wire.requestFrom(BATTERY_ADDR, pb->len);
+
+	for(int i = 0; i < pb->len; i++) {
+		if (Wire.available()) {
+			pb->value[i] = Wire.read();
+		}
 	}
-*/
-	
-		if (pg == 0) {
+}
+
+void displayBlock(Param_block pb) {
+	for (int i = 0; i < pb.len; i++){
+		tft.print(pb.value[i]);
+	}
+}
+
+void showPage(int pg, battery data) {
+	if (pg == 1) {
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
 			delay(200);
 
 			tft.print("Device Name : ");
-			tft.print(data.DeviceName.len);
+			displayBlock(data.DeviceName);
 			tft.print("\n");
 
 			tft.print("Serial Num  : ");
@@ -338,76 +387,77 @@ void displayData (int pg, battery data) {
       		tft.print("AtRate OK  : ");
       		tft.print(data.AtRateOK.value);
       		tft.print("\n");
-
       		
-			
-		} else {
+		} else if (pg == 2) {
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
+			delay(200);
 
 			tft.print("Avg Current : ");
       		tft.print(data.AverageCurrent.value);
       		tft.print("\n");
+
+			tft.print("Max Error : ");
+      		tft.print(data.MaxError.value);
+      		tft.print("\n");
 			
 			tft.print("Abs SoC     : ");
-			tft.print(" 81.2 %\n"); 
+			tft.print(data.AbsoluteStateOfCharge.value);
+			tft.print(" %\n"); 
 
+			tft.print("Rem Cap : ");
+      		tft.print(data.RemainingCapacity.value);
+      		tft.print("\n");
+
+			tft.print("Run TTE : ");
+      		tft.print(data.RunTimeToEmpty.value);
+      		tft.print("\n");
+
+      		tft.print("Avg TTF : ");
+      		tft.print(data.AverageTimeToFull.value);
+      		tft.print("\n");
+
+      		tft.print("Chrg Current : ");
+      		tft.print(data.ChargingCurrent.value);
+      		tft.print("\n");
+
+      		tft.print("Chrg Voltage : ");
+      		tft.print(data.ChargingVoltage.value);
+      		tft.print("\n");
+
+      		tft.print("Batt Status : ");
+      		tft.print(data.BatteryStatus.value);
+      		tft.print("\n");
+
+      		tft.print("Cycle Count : ");
+      		tft.print(data.CycleCount.value);
+      		tft.print("\n");
+
+      		tft.print("Design Voltage : ");
+      		tft.print(data.DesignVoltage.value);
+      		tft.print("\n");
+
+      		tft.print("Spec Info : ");
+      		tft.print(data.SpecificationInfo.value);
+      		tft.print("\n");
+
+      		tft.print("Man Date: ");
+      		tft.print(data.ManufacturerDate.value);
+      		tft.print("\n");
+
+      		tft.print("Man Name : ");
+      		displayBlock(data.ManufacturerName);
+      		tft.print("\n");
+            
 			tft.print("Device Chem : ");
 			displayBlock(data.DeviceChemistry);
 			tft.print("\n");
+		} else {
+			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
+			delay(200);
 			
-			tft.print("Relative State of Charge:\n");
-			tft.print(" 80 %\n\n"); 
-			tft.print("Absolute State of Charge:\n");
-			tft.print(" 81.2 %\n\n"); 
-			tft.print("Average Time to Empty:\n");
-			tft.print(" 73 min\n\n");
+			tft.print("Man Data : ");
+      		displayBlock(data.ManufacturerData);
+      		tft.print("\n"); 
+      		tft.print(data.ManufacturerData.len);
 		}
-
-	}
-/*********************startBus()*********************************************/
-void startBus() {
-	Wire.begin(); 						// join i2c bus (address optional for master)
-}
-
-void getParam_U(unsigned char cmd, Param_uword* pu) {
-	Wire.beginTransmission(BATTERY_ADDR);
-	Wire.write(cmd);
-	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
-	pu->lsb = Wire.read();
-	pu->msb = Wire.read();
-    									// combine the MSB + LSB into one value for displaying
-    									// bit-shift the MSB to the left by 8 bits, moving it to the MSB position
-	pu->value = pu->msb << 8;
-	pu->value = pu->value ^ pu->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
-}
-
-void getParam_S(unsigned char cmd, Param_sword* ps) {
-	Wire.beginTransmission(BATTERY_ADDR);
-	Wire.write(cmd);
-	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
-	ps->lsb = Wire.read();
-	ps->msb = Wire.read();
-	ps->value = ps->msb << 8;
-	ps->value = ps->value ^ ps->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
-}
-
-void getParam_B(unsigned char cmd, Param_block* pb) {
-	Wire.beginTransmission(BATTERY_ADDR);
-	Wire.write(cmd);
-	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 1);	 // request the first byte which holds the length of the character array
-	pb->len = Wire.read();
-	Wire.requestFrom(BATTERY_ADDR, pb->len);
-
-	for(int i = 0; i < pb->len; i++) {
-		pb->value[i] = Wire.read();
-	}
-}
-
-void displayBlock(Param_block pb) {
-	for (int i = 0; i < pb.len; i++){
-		tft.print(pb.value[i]);
-	}
 }
