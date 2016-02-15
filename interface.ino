@@ -4,21 +4,24 @@ void setup(){
 	intializationSetup();
 	displayButtons();
 	bluetoothStatusInfo();
+	setWaterMarkBackground();
 	startBus();
 }
 battery batteryData;
 void loop(){
 	setBatteryParams();
 	displayData(g_currentPage,batteryData);
+	bluetoothStatusInfo();
+	
 	ts.sample();
 	isPressed = ts.isPressed();
 
 	if (isPressed && !previousPressed) {
 
 			tft.fillScreen(Color::White);
+			setWaterMarkBackground();
+			
 			displayButtons();
-			bluetoothStatusInfo();
-
 			g_currentPage++;
 
 			if (g_currentPage > 2) {
@@ -45,19 +48,21 @@ void setBatteryParams(){
 	setParam_U(MANUFACTURER_ACCESS, &batteryData.ManufacturerAccess);
 	setParam_U(REMAINING_CAPACITY_AlARM, &batteryData.RemainingCapacityAlarm);
 	setParam_U(REMAINING_TIME_ALARM, &batteryData.RemainingTimeAlarm);
-	setParam_U(BATTERY_MODE, &batteryData.BatteryMode);
+	
+ 	// page 2
+ 	setParam_U(BATTERY_MODE, &batteryData.BatteryMode);
 	setParam_S(s_AT_RATE, &batteryData.AtRate);
 	setParam_U(AT_RATE_TIME_TO_FULL, &batteryData.AtRateTimeToFull);
 	setParam_U(AT_RATE_TIME_TO_EMPTY, &batteryData.AtRateTimeToEmpty);
 	setParam_U(AT_RATE_OK, &batteryData.AtRateOK);
-
- 	// page 2
 	setParam_S(s_AVERAGE_CURRENT, &batteryData.AverageCurrent);
 	setParam_U(MAX_ERROR, &batteryData.MaxError);
 	setParam_U(ABSOLUTE_STATE_OF_CHARGE, &batteryData.AbsoluteStateOfCharge);
 	setParam_U(REMAINING_CAPACITY, &batteryData.RemainingCapacity);
 	setParam_U(RUNTIME_TO_EMPTY, &batteryData.RunTimeToEmpty);
 	setParam_U(AVERAGE_TIME_TO_EMPTY, &batteryData.AverageTimeToEmpty);
+
+	// page 3	
 	setParam_U(AVERAGE_TIME_TO_FULL, &batteryData.AverageTimeToFull);
 	setParam_U(CHARGING_CURRENT, &batteryData.ChargingCurrent);
 	setParam_U(CHARGING_VOLTAGE, &batteryData.ChargingVoltage);
@@ -68,7 +73,5 @@ void setBatteryParams(){
 	setParam_U(MANUFACTURER_DATE, &batteryData.ManufacturerDate);
 	setParam_B(b_MANUFACTURER_NAME, &batteryData.ManufacturerName);
 	setParam_B(b_DEVICE_CHEMISTRY, &batteryData.DeviceChemistry);
-
-	// page 3
 	setParam_B(b_MANUFACTURER_DATA, &batteryData.ManufacturerData); 
 }

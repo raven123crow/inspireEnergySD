@@ -3,6 +3,10 @@
 #include <Liberation.h>
 #include <Widgets.h>
 #include <Wire.h>
+#include <SD.h>
+#include <BMPFile.h>
+#include <ST7735.h>
+
 //#include "Wire3\Wire.h"
 
 // Constants
@@ -13,7 +17,7 @@
 #define UPPER_DISPLAY_SCREEN_OFFSET 200
 #define RECT_BUTTON_OFFSET 40
 #define BT_START_BOARDER 41
-#define BT_END_BOARDER 65
+#define BT_END_BOARDER 25                  // 65
 #define BATT_BOARDER 1
 #define FLIP ((unsigned char) 0xFF)      // used to flip bits for 2's complement
 #define ONE 0x01                           // used to complete 2's complement
@@ -22,6 +26,7 @@
 #define LAST_PAGE 3
 #define BYTE 8
 #define FLUSH getchar() != '\n'
+#define PIN_SD_SS 48
 
 #define MANUFACTURER_ACCESS        0x00 
 #define REMAINING_CAPACITY_AlARM   0x01
@@ -69,6 +74,7 @@ bool isPreviousPageCleared = 0;
 int pressure = 0;
 int g_currentPage = 1; 						// currently displayed page counter
 String s = " "; 
+File f;
 
 /*********************Structure*************************************/
 struct { // battery parameter - signed word
@@ -141,6 +147,8 @@ void drawBtBoarder();
 void displayData (int pg);
 void displayBlock(Param_block pb);
 void showPage(int pg, battery data);
+void setWaterMarkBackground();
+void getBluetoothData();
 
 /*********************Function Definitions*************************/
 
@@ -157,15 +165,24 @@ void intializationSetup(){
 	//ts.scaleY(3.3);             			// set the touch screen area y  // 3.3
 
 	tft.fillScreen(Color::White);
-	tft.setTextColor(Color::Black, Color::White);
+	//tft.setTextColor(Color::Black, Color::White);
 	tft.setFont(Fonts::Arial30);  				// 20
-	int centerX = tft.getWidth()/2 - 90;    	// set center coordinate for x axis    
-	int centerY = tft.getHeight()/2.5;      	// set center coordinate for y axis
-	tft.setCursor(centerX,centerY);        		// set location of cursor to center
-	tft.print("Inspired\n");	
-	tft.setCursor(centerX, centerY+ 40); 		// move cursor to the next available line
-	tft.print("Energy\n");
-	
+	int x = 0;                          	//  set center coordinate for x axis    
+	int y = tft.getHeight()/3;      	    // set center coordinate for y axis
+	//tft.setCursor(centerX,centerY);        		// set location of cursor to center
+	//tft.print("Inspired\n");	
+	//tft.setCursor(centerX, centerY+ 40); 		// move cursor to the next available line
+	//tft.print("Energy\n");
+
+	if (!SD.begin(PIN_SD_SS)) {
+		tft.print("failed");
+		while(1);
+	}
+	f = SD.open("/b.bmp");
+	BMPFile bmp(f);
+	bmp.draw(&tft,x, y);
+	f.close();
+ 
     delay(1000);
 	tft.fillScreen(Color::White);
 	tft.setCursor(ORIGIN,ORIGIN);
@@ -190,10 +207,8 @@ void drawUpArrow(){
     int y0 = ORIGIN + 5;       // move y coordinate 5 pixels down from orgin
     int y1 = ORIGIN + 35;      // move y coordinate 35 pixels down from orgin
 	int y2 = y1;
-	uint16_t color = rand();
-	tft.fillTriangle(x0,y0,x1,y1,x2,y2,color);
-	color = rand();
-	tft.drawTriangle(x0,y0,x1,y1,x2,y2,color);
+	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
+	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
 }
 
 /*****************drawDownArrow**************************************/
@@ -208,14 +223,13 @@ void drawDownArrow(){
     int y0 = centerY + 235;        // move y coordinate 5 pixels down from orgin
     int y1 = centerY + 205;        // move y coordinate 35 pixels down from orgin
 	int y2 = y1;
-	uint16_t color = rand();       //237 colors
-	tft.fillTriangle(x0,y0,x1,y1,x2,y2,color);
-	color = rand();
-	tft.drawTriangle(x0,y0,x1,y1,x2,y2,color);
+	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
+	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
 }
 
 /*****************bluetoothStatusInfo***********************************/
 void bluetoothStatusInfo(){
+	getBluetoothData();
 	drawBtBoarder();	
 }
 
@@ -227,13 +241,16 @@ void drawBtBoarder(){
 }
 
 /******************bluetoothData**************************************/
-void bluetoothData(){
-	
+void getBluetoothData(){
+	tft.setFont(Fonts::Liberation12);         // 14
+	tft.setTextColor(Color::NavyBlue, Color::GhostWhite); 
+	tft.setCursor(ORIGIN,BT_START_BOARDER); 
+	tft.print("BlueBooth: NOT PAIRED");
 }
 
 /******************batteryinfo****************************************/
 void batteryInfo(){
-	
+	// call displayData
 }
 
 /******************drawBatteryBoarder**************************************/
@@ -243,8 +260,8 @@ void drawBatteryBoarder(){
 }
 
 void displayData (int pg, battery data) {
-	tft.setFont(Fonts::Liberation14);
-	tft.setTextColor(Color::Black, Color::White);
+	tft.setFont(Fonts::Liberation12);         // 14
+	tft.setTextColor(Color::Orange, Color::GhostWhite);  
 	
 	switch (pg) {
 		case 1 :
@@ -306,7 +323,7 @@ void setParam_B(unsigned char cmd, Param_block* pb) {
 	pb->len = Wire.read();
 	Wire.requestFrom(BATTERY_ADDR, pb->len);
 
-	for(int i = 0; i < pb->len; i++) {
+	for(int i = 0; i <= pb->len; i++) {  // it looks like i = 0 is a newline character!
 		if (Wire.available()) {
 			pb->value[i] = Wire.read();
 		}
@@ -314,7 +331,7 @@ void setParam_B(unsigned char cmd, Param_block* pb) {
 }
 
 void displayBlock(Param_block pb) {
-	for (int i = 0; i < pb.len; i++){
+	for (int i = 1; i <= pb.len; i++){
 		tft.print(pb.value[i]);
 	}
 }
@@ -322,142 +339,156 @@ void displayBlock(Param_block pb) {
 void showPage(int pg, battery data) {
 	if (pg == 1) {
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
-			delay(200);
 
 			tft.print("Device Name : ");
 			displayBlock(data.DeviceName);
-			tft.print("\n");
+			tft.print("\n\n");
 
 			tft.print("Serial Num  : ");
 			tft.print(data.SerialNumber.value);
-			tft.print("\n");
+			tft.print("         ");
+			tft.print("\n\n");
 
 			tft.print("Current     : ");
 			tft.print(((float)data.Current.value)/1000); 
-			tft.print(" A\n");
+			tft.print(" A\n\n");
 
 			tft.print("Voltage     : ");
 			tft.print(((float)data.Voltage.value)/1000);
-			tft.print(" V\n");
+			tft.print(" V\n\n");
 
             tft.print("Temp        : ");
 			tft.print(((float)data.Temperature.value / 10)-273.15);
-			tft.print(" C\n");
+			tft.print(" C\n\n");
 
 			tft.print("Design Cap  : ");
 			tft.print(data.DesignCapacity.value);
-			tft.print("U\n");
+			tft.print("U\n\n");
 
             tft.print("Rel SoC     : ");
             tft.print(data.RelativeStateOfCharge.value);
-			tft.print(" %\n"); 
+			tft.print(" %\n\n"); 
 
             tft.print("Full Chg Cap: ");
             tft.print(data.FullChargeCapacity.value);
-            tft.print(" \n");
+            tft.print(" \n\n");
 
             tft.print("Man Access  : ");
             tft.print(data.ManufacturerAccess.value);
-            tft.print("\n");
+            tft.print("\n\n");
 
 			tft.print("Rem Cap Alm : ");
 			tft.print(data.RemainingCapacityAlarm.value);
-			tft.print("\n");
+			tft.print("\n\n");
 
-            tft.print("Rem Time Alm: ");
+			tft.print("Rem Time Alm: ");
             tft.print(data.RemainingTimeAlarm.value);
-            tft.print("\n");
-
-            tft.print("Batt Mode  : ");
-            tft.print(data.BatteryMode.value);
-            tft.print("\n");
-
-			tft.print("AtRate     : ");
-			tft.print(data.AtRate.value);
-			tft.print("\n");
-
-			tft.print("AtRate TTF : ");
-			tft.print(data.AtRateTimeToFull.value);
-			tft.print("\n");
-			
-			tft.print("AtRate TTE : ");
-			tft.print(data.AtRateTimeToEmpty.value);
-			tft.print("\n");
-
-      		tft.print("AtRate OK  : ");
-      		tft.print(data.AtRateOK.value);
-      		tft.print("\n");
+            tft.print("\n\n");
       		
 		} else if (pg == 2) {
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
-			delay(200);
+
+            tft.print("Batt Mode  : ");
+            tft.print(data.BatteryMode.value);
+            tft.print("\n\n");
+
+			tft.print("AtRate      : ");
+			tft.print(data.AtRate.value);
+			tft.print("\n\n");
+
+			tft.print("AtRate TTF  : ");
+			tft.print(data.AtRateTimeToFull.value);
+			tft.print("\n\n");
+			
+			tft.print("AtRate TTE  : ");
+			tft.print(data.AtRateTimeToEmpty.value);
+			tft.print("\n\n");
+
+      		tft.print("AtRate OK   : ");
+      		tft.print(data.AtRateOK.value);
+      		tft.print("\n\n");
 
 			tft.print("Avg Current : ");
       		tft.print(data.AverageCurrent.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-			tft.print("Max Error : ");
+			tft.print("Max Error   : ");
       		tft.print(data.MaxError.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 			
 			tft.print("Abs SoC     : ");
 			tft.print(data.AbsoluteStateOfCharge.value);
-			tft.print(" %\n"); 
+			tft.print(" %\n\n"); 
 
-			tft.print("Rem Cap : ");
+			tft.print("Rem Cap     : ");
       		tft.print(data.RemainingCapacity.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-			tft.print("Run TTE : ");
+			tft.print("Run TTE     : ");
       		tft.print(data.RunTimeToEmpty.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Avg TTF : ");
+      		tft.print("Avg TTE     : ");
+      		tft.print(data.AverageTimeToEmpty.value);
+      		tft.print("\n\n");
+
+		} else {
+			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
+
+			tft.print("Avg TTF      : ");
       		tft.print(data.AverageTimeToFull.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
       		tft.print("Chrg Current : ");
       		tft.print(data.ChargingCurrent.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
       		tft.print("Chrg Voltage : ");
       		tft.print(data.ChargingVoltage.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Batt Status : ");
+      		tft.print("Batt Status  : ");
       		tft.print(data.BatteryStatus.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Cycle Count : ");
+      		tft.print("Cycle Count  : ");
       		tft.print(data.CycleCount.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Design Voltage : ");
+      		tft.print("Design Volt  : ");
       		tft.print(data.DesignVoltage.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Spec Info : ");
+      		tft.print("Spec Info    : ");
       		tft.print(data.SpecificationInfo.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Man Date: ");
+      		tft.print("Man Date     : ");
       		tft.print(data.ManufacturerDate.value);
-      		tft.print("\n");
+      		tft.print("\n\n");
 
-      		tft.print("Man Name : ");
+      		tft.print("Man Name     : ");
       		displayBlock(data.ManufacturerName);
-      		tft.print("\n");
+      		tft.print("\n\n");
             
-			tft.print("Device Chem : ");
+			tft.print("Device Chem  : ");
 			displayBlock(data.DeviceChemistry);
-			tft.print("\n");
-		} else {
-			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
-			delay(200);
+			tft.print("\n\n");
 			
-			tft.print("Man Data : ");
+			tft.print("Man Data     : ");
       		displayBlock(data.ManufacturerData);
-      		tft.print("\n"); 
-      		tft.print(data.ManufacturerData.len);
+      		tft.print("\n\n"); 
+      		//tft.print(data.ManufacturerData.len);
 		}
+}
+
+void setWaterMarkBackground(){
+	int x = 0;                          	//  set center coordinate for x axis    
+	int y = tft.getHeight()/3;      	    // set center coordinate for y axis
+	
+    SD.begin(PIN_SD_SS);
+	f = SD.open("wm.bmp");
+	BMPFile bmp(f);
+	bmp.draw(&tft,x, y);
+	f.close();	
 }
