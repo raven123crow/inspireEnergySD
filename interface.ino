@@ -4,29 +4,40 @@ void setup(){
 	intializationSetup();
 	displayButtons();
 	bluetoothStatusInfo();
-	setWaterMarkBackground();
 	startBus();
 }
 battery batteryData;
+int y = 0;   // y coordinate. no need to check x coordinate
 void loop(){
 	setBatteryParams();
 	displayData(g_currentPage,batteryData);
 	bluetoothStatusInfo();
-	
 	ts.sample();
 	isPressed = ts.isPressed();
 
 	if (isPressed && !previousPressed) {
+		y = ts.y();
 
-			tft.fillScreen(Color::White);
-			setWaterMarkBackground();
-			
+		if (y > 0 && y < 241){            // magic number 0 is the start of the bluetooth line (y axis), magic number 241 is the middle of the y axis
+			tft.fillScreen(Color::White); 
 			displayButtons();
 			g_currentPage++;
-
-			if (g_currentPage > 2) {
-				g_currentPage = 0;				
-			} // end if
+		} else if (y > 240 && y < 506){  // magic number 240 the midway of the y axis and magic number 506 is the bottom of the y-axis
+			tft.fillScreen(Color::White);
+			displayButtons();
+			g_currentPage--;
+		}
+		  else {                         // for some reason, the very top of the lcd to the buttom end of the up arrow is reading a range of 65507-65554
+		  	tft.fillScreen(Color::White);
+			displayButtons();
+			g_currentPage++; 
+		}
+		
+		if (g_currentPage > 3) {
+			g_currentPage = 1;				
+		} else if (g_currentPage < 1) {
+			g_currentPage = 3;
+		}
 		previousPressed = true;
 	} // end if 
 	
