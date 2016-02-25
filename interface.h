@@ -28,6 +28,8 @@
 #define FLUSH getchar() != '\n'
 #define PIN_SD_SS 48
 
+#define BT_STATUS	17
+
 #define MANUFACTURER_ACCESS        0x00 
 #define REMAINING_CAPACITY_AlARM   0x01
 #define REMAINING_TIME_ALARM       0x02
@@ -66,8 +68,10 @@
 
 Picadillo tft;
 AnalogTouch ts(LCD_XL, LCD_XR, LCD_YU, LCD_YD, 320, 480);  
-twButton    up(ts, tft, ORIGIN, ORIGIN, 320, 40, "");
-twButton    down(ts, tft, ORIGIN, 440, 320, 480, "");
+//twButton    up(ts, tft, ORIGIN, ORIGIN, 320, 35, "");
+//twButton    down(ts, tft, ORIGIN, 445, 320, 480, "");
+twButton    up(ts, tft, ORIGIN+1, ORIGIN+1, 316, 35, ""); // brought the buttons in 1 pixel from the edges, looks better to me. -MW
+twButton    down(ts, tft, ORIGIN+1, 444, 316, 35, "");
 bool isPressed = false;
 bool previousPressed = false; 				// stores previous loops pressed value
 bool isPreviousPageCleared = 0;
@@ -184,7 +188,7 @@ void intializationSetup(){
 	f.close();
  
     delay(1000);
-	tft.fillScreen(Color::White);
+	tft.fillScreen(Color::Black);
 	tft.setCursor(ORIGIN,ORIGIN);
 	
 	ts.sample();
@@ -192,6 +196,9 @@ void intializationSetup(){
 
 /*****************setButton******************************************/
 void displayButtons(){
+	up.draw(&tft, ORIGIN+1, ORIGIN+1); // thou shalt redraw thine buttons if thou desirest them to not disappear when changing pages :) -MW
+	down.draw(&tft, ORIGIN+1, 444);
+
 	drawUpArrow();
 	drawDownArrow();
 }
@@ -205,7 +212,7 @@ void drawUpArrow(){
 	int x1 = centerX - 10;     // shift x coordinates left by 10 pixels from center
 	int x2 = centerX + 10;     // shift x coordinates right by 10 pixels from center 
     int y0 = ORIGIN + 5;       // move y coordinate 5 pixels down from orgin
-    int y1 = ORIGIN + 35;      // move y coordinate 35 pixels down from orgin
+    int y1 = ORIGIN + 30;      // move y coordinate 35 pixels down from orgin
 	int y2 = y1;
 	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
 	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
@@ -221,7 +228,7 @@ void drawDownArrow(){
 	int x1 = centerX + 10;     		// shift x coordinates left by 10 pixels from center
 	int x2 = centerX - 10;     		// shift x coordinates right by 10 pixels from center 
     int y0 = centerY + 235;        // move y coordinate 5 pixels down from orgin
-    int y1 = centerY + 205;        // move y coordinate 35 pixels down from orgin
+    int y1 = centerY + 210;        // move y coordinate 35 pixels down from orgin  205
 	int y2 = y1;
 	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
 	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
@@ -242,10 +249,19 @@ void drawBtBoarder(){
 
 /******************bluetoothData**************************************/
 void getBluetoothData(){
+	int x_status = 0;
+	int y_status = 44;
+
 	tft.setFont(Fonts::Liberation12);         // 14
-	tft.setTextColor(Color::NavyBlue, Color::GhostWhite); 
-	tft.setCursor(ORIGIN,BT_START_BOARDER); 
-	tft.print("BlueBooth: NOT PAIRED");
+	tft.setTextColor(Color::Orange, Color::Black); 
+	tft.setCursor(x_status, y_status); 
+	tft.print("BT:");
+	if (digitalRead(BT_STATUS)){ // display bt connection status by reading pin 17 (A3)
+		tft.print(" PAIRED    ");
+		
+	} else {
+		tft.print(" NOT PAIRED");
+	}
 }
 
 /******************batteryinfo****************************************/
@@ -260,8 +276,8 @@ void drawBatteryBoarder(){
 }
 
 void displayData (int pg, battery data) {
+
 	tft.setFont(Fonts::Liberation12);         // 14
-	tft.setTextColor(Color::Orange, Color::GhostWhite);  
 	
 	switch (pg) {
 		case 1 :
@@ -321,9 +337,9 @@ void setParam_B(unsigned char cmd, Param_block* pb) {
 	Wire.endTransmission();
 	Wire.requestFrom(BATTERY_ADDR, 1);	 // request the first byte which holds the length of the character array
 	pb->len = Wire.read();
-	Wire.requestFrom(BATTERY_ADDR, pb->len);
+	Wire.requestFrom(BATTERY_ADDR, pb->len+1);
 
-	for(int i = 0; i <= pb->len; i++) {  // it looks like i = 0 is a newline character!
+	for(int i = 0; i <= pb->len+1; i++) {  // it looks like i = 0 is a newline character!
 		if (Wire.available()) {
 			pb->value[i] = Wire.read();
 		}
@@ -331,154 +347,451 @@ void setParam_B(unsigned char cmd, Param_block* pb) {
 }
 
 void displayBlock(Param_block pb) {
-	for (int i = 1; i <= pb.len; i++){
+	for (int i = 1; i <= pb.len+1; i++){
 		tft.print(pb.value[i]);
 	}
 }
 
 void showPage(int pg, battery data) {
+
+	int x_pos = 145;
+	int y_pos = 0;
+	int y_inc = 34;
+
+	int x_status = 215;
+	int y_status = 44;
+	
+	// set display colors 
+	uint16_t c_label = Color::LightBlue; 
+	uint16_t c_param = Color::White;
+	uint16_t c_status = Color::Orange;
+	uint16_t c_backg = Color::Black;
+
+	
 	if (pg == 1) {
-			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
 
-			tft.print("Device Name : ");
+			tft.setTextColor(c_status, c_backg); 
+			tft.setCursor(x_status, y_status);
+			tft.print("Page 1/3");
+		
+			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET + 4);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Device Name");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			displayBlock(data.DeviceName);
-			tft.print("\n\n");
+			
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
 
-			tft.print("Serial Num  : ");
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Serial Num");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.SerialNumber.value);
-			tft.print("         ");
-			tft.print("\n\n");
 
-			tft.print("Current     : ");
-			tft.print(((float)data.Current.value)/1000); 
-			tft.print(" A\n\n");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
 
-			tft.print("Voltage     : ");
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Current");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
+			if (abs(data.Current.value) < 500) { // small current values, display in mA
+				if (data.Current.value == 0) {
+					tft.setTextColor(c_param, c_backg); 	// no load
+					tft.print(abs(data.Current.value)); 
+				} else if (data.Current.value < 0) {   		// current drain (under load)
+					tft.setTextColor(Color::Red, c_backg); 
+					tft.print(abs(data.Current.value)); 
+				} else {								  	// battery charging
+					tft.setTextColor(Color::Green, c_backg); 
+					tft.print(abs(data.Current.value)); 
+				}
+				tft.print(" mA    ");
+			} else {							// Large current values, display in A
+				tft.print(((float)data.Current.value)/1000); 
+				tft.print(" A");
+			}
+
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Voltage");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(((float)data.Voltage.value)/1000);
-			tft.print(" V\n\n");
+			tft.print(" V");
 
-            tft.print("Temp        : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+            tft.print("Temp");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(((float)data.Temperature.value / 10)-273.15);
-			tft.print(" C\n\n");
+			tft.print(" C");
 
-			tft.print("Design Cap  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Design Cap");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.DesignCapacity.value);
-			tft.print("U\n\n");
+			tft.print(" mAh");
 
-            tft.print("Rel SoC     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+            tft.print("Rel SoC");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
             tft.print(data.RelativeStateOfCharge.value);
-			tft.print(" %\n\n"); 
+			tft.print(" %"); 
 
-            tft.print("Full Chg Cap: ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+            tft.print("Full Chg Cap");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
             tft.print(data.FullChargeCapacity.value);
-            tft.print(" \n\n");
+            tft.print(" mAh");
 
-            tft.print("Man Access  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+            tft.print("Man Access");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
             tft.print(data.ManufacturerAccess.value);
-            tft.print("\n\n");
+            tft.print(" ");
 
-			tft.print("Rem Cap Alm : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Rem Cap Alm");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.RemainingCapacityAlarm.value);
-			tft.print("\n\n");
+			tft.print(" mAh");
 
-			tft.print("Rem Time Alm: ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Rem Time Alm");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
             tft.print(data.RemainingTimeAlarm.value);
-            tft.print("\n\n");
+            tft.print(" mins");
       		
+
 		} else if (pg == 2) {
+
+			tft.setTextColor(c_status, c_backg); 
+			tft.setCursor(x_status, y_status);
+			tft.print("Page 2/3");
+
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
 
-            tft.print("Batt Mode  : ");
+			tft.setTextColor(c_label, c_backg); 
+            tft.print("Batt Mode");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
             tft.print(data.BatteryMode.value);
-            tft.print("\n\n");
+            tft.print(" ");
 
-			tft.print("AtRate      : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("AtRate");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.AtRate.value);
-			tft.print("\n\n");
+			tft.print(" ");
 
-			tft.print("AtRate TTF  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("AtRate TTF");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.AtRateTimeToFull.value);
-			tft.print("\n\n");
+			tft.print(" ");
 			
-			tft.print("AtRate TTE  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("AtRate TTE");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.AtRateTimeToEmpty.value);
-			tft.print("\n\n");
+			tft.print(" ");
 
-      		tft.print("AtRate OK   : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("AtRate OK");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.AtRateOK.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-			tft.print("Avg Current : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Avg Current");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.AverageCurrent.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-			tft.print("Max Error   : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Max Error");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.MaxError.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 			
-			tft.print("Abs SoC     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Abs SoC");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			tft.print(data.AbsoluteStateOfCharge.value);
-			tft.print(" %\n\n"); 
+			tft.print(" %"); 
 
-			tft.print("Rem Cap     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Rem Cap");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.RemainingCapacity.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-			tft.print("Run TTE     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Run TTE");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.RunTimeToEmpty.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Avg TTE     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Avg TTE");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.AverageTimeToEmpty.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
+
 
 		} else {
+
+			tft.setTextColor(c_status, c_backg); 
+			tft.setCursor(x_status, y_status);
+			tft.print("Page 3/3");
+			
 			tft.setCursor(ORIGIN,BATT_BOARDER + BT_END_BOARDER + RECT_BUTTON_OFFSET);
 
-			tft.print("Avg TTF      : ");
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Avg TTF");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.AverageTimeToFull.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Chrg Current : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Chrg Current");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.ChargingCurrent.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Chrg Voltage : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Chrg Voltage");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.ChargingVoltage.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Batt Status  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Batt Status");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.BatteryStatus.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Cycle Count  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Cycle Count");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.CycleCount.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Design Volt  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Design Volt");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.DesignVoltage.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Spec Info    : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Spec Info");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.SpecificationInfo.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Man Date     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Man Date");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		tft.print(data.ManufacturerDate.value);
-      		tft.print("\n\n");
+      		tft.print(" ");
 
-      		tft.print("Man Name     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+      		tft.print("Man Name");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		displayBlock(data.ManufacturerName);
-      		tft.print("\n\n");
+      		tft.print(" ");
             
-			tft.print("Device Chem  : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Device Chem");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
 			displayBlock(data.DeviceChemistry);
-			tft.print("\n\n");
+			tft.print(" ");
 			
-			tft.print("Man Data     : ");
+			y_pos = tft.getCursorY() + y_inc;
+			tft.setCursor(ORIGIN, y_pos);
+
+			tft.setTextColor(c_label, c_backg); 
+			tft.print("Man Data");
+			y_pos = tft.getCursorY();
+			tft.setCursor(x_pos, y_pos);
+			tft.print(" : ");
+			tft.setTextColor(c_param, c_backg); 
       		displayBlock(data.ManufacturerData);
-      		tft.print("\n\n"); 
-      		//tft.print(data.ManufacturerData.len);
+      		
 		}
 }
 
