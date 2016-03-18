@@ -1,15 +1,16 @@
 #include "interface.h"
 
+//Raw565 extern ieLogo;
+
 void setup(){
 	intializationSetup();
 	displayButtons();
 	bluetoothStatusInfo();
 	startBus();
-
-	pinMode(BT_STATUS, INPUT); // set pin 17 as input, connected to the bluetooth connection status pin
+	pinMode(BT_STATUS, INPUT);                                              // set pin 17 as input, connected to the bluetooth connection status pin
 }
 battery batteryData;
-int y = 0;   // y coordinate. no need to check x coordinate
+int y = 0;                                                              // y coordinate. no need to check x coordinate
 void loop(){
 	setBatteryParams();
 	displayData(g_currentPage,batteryData);
@@ -20,11 +21,11 @@ void loop(){
 	if (isPressed && !previousPressed) {
 		y = ts.y();
 
-		if ((y >= 0 && y <= 240) || (y >= 65507 && y <= 65554)){    // magic number 0 is the start of the bluetooth line (y axis of lcd screen), magic number 241 is the middle of the y axis
-			tft.fillScreen(Color::Black); 							// for some reason, the very top of the lcd to the buttom end of the up arrow is reading a range of 65507-65554
+		if ((y >= 0 && y <= 240) || (y >= 65507 && y <= 65554)){            // magic number 0 is the start of the bluetooth line (y axis of lcd screen), magic number 241 is the middle of the y axis
+			tft.fillScreen(Color::Black); 							                      // for some reason, the very top of the lcd to the buttom end of the up arrow is reading a range of 65507-65554
 			displayButtons();
 			g_currentPage--;
-		} else if (y >= 241 && y <= 505){  							// magic number 241 the midway of the y axis and magic number 505 is the bottom of the y-axis
+		} else if (y >= 241 && y <= 505){  							                    // magic number 241 the midway of the y axis and magic number 505 is the bottom of the y-axis
 			tft.fillScreen(Color::Black);
 			displayButtons();
 			g_currentPage++;

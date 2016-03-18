@@ -5,24 +5,27 @@
 #include <Wire.h>
 #include <SD.h>
 #include <BMPFile.h>
-#include <ST7735.h>
+#include <Raw565.h>
+#include "IEBMP.h"
+
+
 
 //#include "Wire3\Wire.h"
 
 // Constants
 
-#define PORTRAIT  0  	                  // 0 degrees
-#define ORIGIN    0     			      // zero coordinate
-#define MAX_LIGHT 255                     // turn on maximum light for screen
+#define PORTRAIT  0  	                      // 0 degrees
+#define ORIGIN    0     			              // zero coordinate
+#define MAX_LIGHT 255                       // turn on maximum light for screen
 #define UPPER_DISPLAY_SCREEN_OFFSET 200
 #define RECT_BUTTON_OFFSET 40
 #define BT_START_BOARDER 41
-#define BT_END_BOARDER 25                  // 65
+#define BT_END_BOARDER 25                   // 65
 #define BATT_BOARDER 1
-#define FLIP ((unsigned char) 0xFF)      // used to flip bits for 2's complement
-#define ONE 0x01                           // used to complete 2's complement
-#define BATTERY_ADDR 11                    // battery location  // battery i2c write address, the read address is (BattAddr + 1) 11 battery, 26 mcu
-#define CHAR_LENGTH 32                     // maximum character string for a Param_block read
+#define FLIP ((unsigned char) 0xFF)         // used to flip bits for 2's complement
+#define ONE 0x01                            // used to complete 2's complement
+#define BATTERY_ADDR 26                     // battery location  // battery i2c write address, the read address is (BattAddr + 1) 11 battery(22 without loss of bit), 26 mcu
+#define CHAR_LENGTH 32                      // maximum character string for a Param_block read
 #define LAST_PAGE 3
 #define BYTE 8
 #define FLUSH getchar() != '\n'
@@ -68,75 +71,75 @@
 
 Picadillo tft;
 AnalogTouch ts(LCD_XL, LCD_XR, LCD_YU, LCD_YD, 320, 480);  
-//twButton    up(ts, tft, ORIGIN, ORIGIN, 320, 35, "");
-//twButton    down(ts, tft, ORIGIN, 445, 320, 480, "");
-twButton    up(ts, tft, ORIGIN+1, ORIGIN+1, 316, 35, ""); // brought the buttons in 1 pixel from the edges, looks better to me. -MW
+twButton    up(ts, tft, ORIGIN+1, ORIGIN+1, 316, 35, "");       // brought the buttons in 1 pixel from the edges, looks better to me. -MW
 twButton    down(ts, tft, ORIGIN+1, 444, 316, 35, "");
 bool isPressed = false;
-bool previousPressed = false; 				// stores previous loops pressed value
+bool previousPressed = false; 				                          // stores previous loops pressed value
 bool isPreviousPageCleared = 0;
 int pressure = 0;
-int g_currentPage = 1; 						// currently displayed page counter
+int g_currentPage = 1; 						                              // currently displayed page counter
 String s = " "; 
 File f;
+Raw565 ieLogo(ieLogo_data, 320, 160);                           // Inspired Energy Logo
+
 
 /*********************Structure*************************************/
-struct { // battery parameter - signed word
+struct {                                                        // battery parameter - signed word
     unsigned char lsb;
     unsigned char msb;
     signed short value;
 } typedef Param_sword;
 
 
-struct { // battery parameter - unsigned word
+struct {                                                       // battery parameter - unsigned word
     unsigned char lsb;
     unsigned char msb;
     unsigned int value;
 } typedef Param_uword;
 
-struct { // battery parameter that is a character string
+struct {                                                      // battery parameter that is a character string
     char value[CHAR_LENGTH];
     int len;
 } typedef Param_block;
 
 
 struct {
-    Param_uword ManufacturerAccess; 	// Code 0x00 - ManufacturerAccess()
-    Param_uword RemainingCapacityAlarm; // Code 0x01 - RemainingCapacityAlarm()
-    Param_uword RemainingTimeAlarm; 	// Code 0x02 - RemainingTimeAlarm()
-    Param_uword BatteryMode; 			// Code 0x03 - BatteryMode()
-    Param_sword AtRate; 				// Code 0x04 - AtRate()
-    Param_uword AtRateTimeToFull; 		// Code 0x05 - AtRateTimeToFull() 
-    Param_uword AtRateTimeToEmpty; 		// Code 0x06 - AtRateTimeToEmpty()
-    Param_uword AtRateOK; 				// Code 0x07 - AtRateOK()
-    Param_uword Temperature; 			// Code 0x08 - Temperature()
-    Param_uword Voltage; 				// Code 0x09 - Voltage()
-    Param_sword Current; 				// Code 0x0A - Current()
-    Param_sword AverageCurrent;			// Code 0x0B - AverageCurrent()
-    Param_uword MaxError; 				// Code 0x0C - MaxError()
-    Param_uword RelativeStateOfCharge; 	// Code 0x0D - RelativeStateOfCharge()
-    Param_uword AbsoluteStateOfCharge; 	// Code 0x0E - AbsoluteStateOfCharge()
-    Param_uword RemainingCapacity; 		// Code 0x0F - RemainingCapacity()
-    Param_uword FullChargeCapacity; 	// Code 0x10 - FullChargeCapacity()
-    Param_uword RunTimeToEmpty; 		// Code 0x11 - RunTimeToEmpty()
-    Param_uword AverageTimeToEmpty; 	// Code 0x12 - AverageTimeToEmpty()
-    Param_uword AverageTimeToFull; 		// Code 0x13 - AverageTimeToFull()
-    Param_uword ChargingCurrent; 		// Code 0x14 - ChargingCurrent()
-    Param_uword ChargingVoltage; 		// Code 0x15 - ChargingVoltage()
-    Param_uword BatteryStatus; 			// Code 0x16 - BatteryStatus()
-    Param_uword CycleCount; 			// Code 0x17 - CycleCount()
-    Param_uword DesignCapacity; 		// Code 0x18 - DesignCapacity()
-    Param_uword DesignVoltage; 			// Code 0x19 - DesignVoltage()
-    Param_uword SpecificationInfo; 		// Code 0x1A - SpecificationInfo()
-    Param_uword ManufacturerDate; 		// Code 0x1B - ManufacturerDate()
-    Param_uword SerialNumber; 			// Code 0x1C - SerialNumber()
+    Param_uword ManufacturerAccess; 	                        // Code 0x00 - ManufacturerAccess()
+    Param_uword RemainingCapacityAlarm;                       // Code 0x01 - RemainingCapacityAlarm()
+    Param_uword RemainingTimeAlarm; 	                        // Code 0x02 - RemainingTimeAlarm()
+    Param_uword BatteryMode; 			                            // Code 0x03 - BatteryMode()
+    Param_sword AtRate; 				                              // Code 0x04 - AtRate()
+    Param_uword AtRateTimeToFull; 		                        // Code 0x05 - AtRateTimeToFull() 
+    Param_uword AtRateTimeToEmpty; 		                        // Code 0x06 - AtRateTimeToEmpty()
+    Param_uword AtRateOK; 				                            // Code 0x07 - AtRateOK()
+    Param_uword Temperature; 			                            // Code 0x08 - Temperature()
+    Param_uword Voltage; 				                              // Code 0x09 - Voltage()
+    Param_sword Current; 				                              // Code 0x0A - Current()
+    Param_sword AverageCurrent;			                          // Code 0x0B - AverageCurrent()
+    Param_uword MaxError; 				                            // Code 0x0C - MaxError()
+    Param_uword RelativeStateOfCharge; 	                      // Code 0x0D - RelativeStateOfCharge()
+    Param_uword AbsoluteStateOfCharge; 	                      // Code 0x0E - AbsoluteStateOfCharge()
+    Param_uword RemainingCapacity; 		                        // Code 0x0F - RemainingCapacity()
+    Param_uword FullChargeCapacity; 	                        // Code 0x10 - FullChargeCapacity()
+    Param_uword RunTimeToEmpty; 		                          // Code 0x11 - RunTimeToEmpty()
+    Param_uword AverageTimeToEmpty; 	                        // Code 0x12 - AverageTimeToEmpty()
+    Param_uword AverageTimeToFull; 		                        // Code 0x13 - AverageTimeToFull()
+    Param_uword ChargingCurrent; 		                          // Code 0x14 - ChargingCurrent()
+    Param_uword ChargingVoltage; 		                          // Code 0x15 - ChargingVoltage()
+    Param_uword BatteryStatus; 			                          // Code 0x16 - BatteryStatus()
+    Param_uword CycleCount; 			                            // Code 0x17 - CycleCount()
+    Param_uword DesignCapacity; 		                          // Code 0x18 - DesignCapacity()
+    Param_uword DesignVoltage; 			                          // Code 0x19 - DesignVoltage()
+    Param_uword SpecificationInfo; 		                        // Code 0x1A - SpecificationInfo()
+    Param_uword ManufacturerDate; 		                        // Code 0x1B - ManufacturerDate()
+    Param_uword SerialNumber; 			                          // Code 0x1C - SerialNumber()
     // Code 0x1D - Reserved
     // Code 0x1E - Reserved
     // Code 0x1F - Reserved
-    Param_block ManufacturerName; 		// Code 0x20 - ManufacturerName()
-    Param_block DeviceName; 			// Code 0x21 - DeviceName()
-    Param_block DeviceChemistry; 		// Code 0x22 - DeviceChemistry()
-    Param_block ManufacturerData; 		// Code 0x23 - ManufacturerData()
+    Param_block ManufacturerName; 		                        // Code 0x20 - ManufacturerName()
+    Param_block DeviceName; 			                            // Code 0x21 - DeviceName()
+    Param_block DeviceChemistry; 		                          // Code 0x22 - DeviceChemistry()
+    Param_block ManufacturerData; 		                        // Code 0x23 - ManufacturerData()
 } typedef battery;
 
 battery batt;
@@ -158,45 +161,25 @@ void getBluetoothData();
 
 /*****************intializationSetup******************************/
 void intializationSetup(){
-	analogWrite(PIN_BACKLIGHT, MAX_LIGHT); // 0 is off and 255 is on
- 
+	analogWrite(PIN_BACKLIGHT, MAX_LIGHT);                      // 0 is off and 255 is on
 	tft.initializeDevice();
-	tft.setRotation(PORTRAIT);   			// sets orientation of the display
-	
+	tft.setRotation(PORTRAIT);   			                          // sets orientation of the display
 	ts.initializeDevice();
-	ts.setRotation(PORTRAIT);   			// sets the orientation of the touch screen
-	//ts.scaleX(4.3);              			// set the touch screen area x // 4.3
-	//ts.scaleY(3.3);             			// set the touch screen area y  // 3.3
-
+	ts.setRotation(PORTRAIT);   			                          // sets the orientation of the touch screen
 	tft.fillScreen(Color::White);
-	//tft.setTextColor(Color::Black, Color::White);
-	tft.setFont(Fonts::Arial30);  				// 20
-	int x = 0;                          	//  set center coordinate for x axis    
-	int y = tft.getHeight()/3;      	    // set center coordinate for y axis
-	//tft.setCursor(centerX,centerY);        		// set location of cursor to center
-	//tft.print("Inspired\n");	
-	//tft.setCursor(centerX, centerY+ 40); 		// move cursor to the next available line
-	//tft.print("Energy\n");
-
-	if (!SD.begin(PIN_SD_SS)) {
-		tft.print("failed");
-		while(1);
-	}
-	f = SD.open("/b.bmp");
-	BMPFile bmp(f);
-	bmp.draw(&tft,x, y);
-	f.close();
- 
-    delay(1000);
+	tft.setFont(Fonts::Arial30);  				                      // 20
+	int x = 0;                          	                      //  set center coordinate for x axis    
+	int y = tft.getHeight()/3;      	                          // set center coordinate for y axis
+  ieLogo.draw(&tft, x, y);
+  delay(5000);
 	tft.fillScreen(Color::Black);
 	tft.setCursor(ORIGIN,ORIGIN);
-	
 	ts.sample();
 }
 
 /*****************setButton******************************************/
 void displayButtons(){
-	up.draw(&tft, ORIGIN+1, ORIGIN+1); // thou shalt redraw thine buttons if thou desirest them to not disappear when changing pages :) -MW
+	up.draw(&tft, ORIGIN+1, ORIGIN+1);                         // thou shalt redraw thine buttons if thou desirest them to not disappear when changing pages :) -MW
 	down.draw(&tft, ORIGIN+1, 444);
 
 	drawUpArrow();
@@ -209,10 +192,10 @@ void drawUpArrow(){
 	up.render();
 	int centerX = tft.getWidth()/2;
 	int x0 = centerX;
-	int x1 = centerX - 10;     // shift x coordinates left by 10 pixels from center
-	int x2 = centerX + 10;     // shift x coordinates right by 10 pixels from center 
-    int y0 = ORIGIN + 5;       // move y coordinate 5 pixels down from orgin
-    int y1 = ORIGIN + 30;      // move y coordinate 35 pixels down from orgin
+	int x1 = centerX - 10;                                    // shift x coordinates left by 10 pixels from center
+	int x2 = centerX + 10;                                    // shift x coordinates right by 10 pixels from center 
+    int y0 = ORIGIN + 5;                                    // move y coordinate 5 pixels down from orgin
+    int y1 = ORIGIN + 30;                                   // move y coordinate 35 pixels down from orgin
 	int y2 = y1;
 	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
 	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
@@ -225,10 +208,10 @@ void drawDownArrow(){
 	int centerX = tft.getWidth()/2;
 	int centerY = tft.getHeight()/2;
 	int x0 = centerX;
-	int x1 = centerX + 10;     		// shift x coordinates left by 10 pixels from center
-	int x2 = centerX - 10;     		// shift x coordinates right by 10 pixels from center 
-    int y0 = centerY + 235;        // move y coordinate 5 pixels down from orgin
-    int y1 = centerY + 210;        // move y coordinate 35 pixels down from orgin  205
+	int x1 = centerX + 10;     		                          // shift x coordinates left by 10 pixels from center
+	int x2 = centerX - 10;     		                          // shift x coordinates right by 10 pixels from center 
+    int y0 = centerY + 235;                               // move y coordinate 5 pixels down from orgin
+    int y1 = centerY + 210;                               // move y coordinate 35 pixels down from orgin  205
 	int y2 = y1;
 	tft.fillTriangle(x0,y0,x1,y1,x2,y2,Color::Wheat);
 	tft.drawTriangle(x0,y0,x1,y1,x2,y2,Color::Gold);
@@ -252,11 +235,11 @@ void getBluetoothData(){
 	int x_status = 0;
 	int y_status = 44;
 
-	tft.setFont(Fonts::Liberation12);         // 14
+	tft.setFont(Fonts::Liberation12);                       
 	tft.setTextColor(Color::Orange, Color::Black); 
 	tft.setCursor(x_status, y_status); 
 	tft.print("BT:");
-	if (digitalRead(BT_STATUS)){ // display bt connection status by reading pin 17 (A3)
+	if (digitalRead(BT_STATUS)){                             // display bt connection status by reading pin 17 (A3)
 		tft.print(" PAIRED    ");
 		
 	} else {
@@ -277,7 +260,7 @@ void drawBatteryBoarder(){
 
 void displayData (int pg, battery data) {
 
-	tft.setFont(Fonts::Liberation12);         // 14
+	tft.setFont(Fonts::Liberation12);                       
 	
 	switch (pg) {
 		case 1 :
@@ -292,12 +275,12 @@ void displayData (int pg, battery data) {
 			showPage(pg, data);
 		break;
 
-		default :                 // This shouldn't happen, but just in case it does!
-			if (pg > LAST_PAGE) {  // currently in the last page circle back to first page
-				pg = 1;            // set to first page
+		default :                                               // This shouldn't happen, but just in case it does!
+			if (pg > LAST_PAGE) {                                 // currently in the last page circle back to first page
+				pg = 1;                                             // set to first page
 				showPage(pg, data);
 			} else {
-				pg = LAST_PAGE;    // currently in the first page circle back to last page
+				pg = LAST_PAGE;                                     // currently in the first page circle back to last page
 				showPage(pg, data);
 			}
 		break;
@@ -305,45 +288,50 @@ void displayData (int pg, battery data) {
 }
 /*********************startBus()*********************************************/
 void startBus() {
-	Wire.begin(); 						// join i2c bus (address optional for master)
+	Wire.begin(); 						                                // join i2c bus (address optional for master)
 }
 
 void setParam_U(unsigned char cmd, Param_uword* pu) {
+ 
 	Wire.beginTransmission(BATTERY_ADDR);
-	Wire.write(cmd);
+	Wire.send(cmd);
 	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
-	pu->lsb = Wire.read();
-	pu->msb = Wire.read();
-    									// combine the MSB + LSB into one value for displaying
-	pu->value = pu->msb << BYTE;           // bit-shift the MSB to the left by 8 bits, moving it to the MSB position
-	pu->value = pu->value ^ pu->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
+	Wire.requestFrom(BATTERY_ADDR, 2);                      	// request 2 bytes from battery
+	pu->lsb = Wire.receive();
+	pu->msb = Wire.receive();
+    									                                      // combine the MSB + LSB into one value for displaying
+	pu->value = pu->msb << BYTE;                              // bit-shift the MSB to the left by 8 bits, moving it to the MSB position
+	pu->value = pu->value ^ pu->lsb; 	                        // bitwise XOR the LSB with the value to place it in the LSB position
 }
 
 void setParam_S(unsigned char cmd, Param_sword* ps) {
+  
 	Wire.beginTransmission(BATTERY_ADDR);
 	Wire.write(cmd);
 	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 2); 	// request 2 bytes from battery
+	Wire.requestFrom(BATTERY_ADDR, 2); 	                      // request 2 bytes from battery
 	ps->lsb = Wire.read();
 	ps->msb = Wire.read();
 	ps->value = ps->msb << BYTE;
-	ps->value = ps->value ^ ps->lsb; 	// bitwise XOR the LSB with the value to place it in the LSB position
+	ps->value = ps->value ^ ps->lsb; 	                        // bitwise XOR the LSB with the value to place it in the LSB position
+ 
 }
 
 void setParam_B(unsigned char cmd, Param_block* pb) {
+ 
 	Wire.beginTransmission(BATTERY_ADDR);
 	Wire.write(cmd);
 	Wire.endTransmission();
-	Wire.requestFrom(BATTERY_ADDR, 1);	 // request the first byte which holds the length of the character array
+	Wire.requestFrom(BATTERY_ADDR, 1);	                     // request the first byte which holds the length of the character array
 	pb->len = Wire.read();
 	Wire.requestFrom(BATTERY_ADDR, pb->len+1);
 
-	for(int i = 0; i <= pb->len+1; i++) {  // it looks like i = 0 is a newline character!
+	for(int i = 0; i <= pb->len+1; i++) {                   // it looks like i = 0 is a newline character!
 		if (Wire.available()) {
 			pb->value[i] = Wire.read();
 		}
 	}
+
 }
 
 void displayBlock(Param_block pb) {
@@ -353,11 +341,9 @@ void displayBlock(Param_block pb) {
 }
 
 void showPage(int pg, battery data) {
-
 	int x_pos = 145;
 	int y_pos = 0;
 	int y_inc = 34;
-
 	int x_status = 215;
 	int y_status = 44;
 	
@@ -404,19 +390,19 @@ void showPage(int pg, battery data) {
 			tft.setCursor(x_pos, y_pos);
 			tft.print(" : ");
 			tft.setTextColor(c_param, c_backg); 
-			if (abs(data.Current.value) < 500) { // small current values, display in mA
+			if (abs(data.Current.value) < 500) {                    // small current values, display in mA
 				if (data.Current.value == 0) {
-					tft.setTextColor(c_param, c_backg); 	// no load
+					tft.setTextColor(c_param, c_backg); 	              // no load
 					tft.print(abs(data.Current.value)); 
-				} else if (data.Current.value < 0) {   		// current drain (under load)
+				} else if (data.Current.value < 0) {   		            // current drain (under load)
 					tft.setTextColor(Color::Red, c_backg); 
 					tft.print(abs(data.Current.value)); 
-				} else {								  	// battery charging
+				} else {								  	                          // battery charging
 					tft.setTextColor(Color::Green, c_backg); 
 					tft.print(abs(data.Current.value)); 
 				}
 				tft.print(" mA    ");
-			} else {							// Large current values, display in A
+			} else {							                                  // Large current values, display in A
 				tft.print(((float)data.Current.value)/1000); 
 				tft.print(" A");
 			}
@@ -790,18 +776,8 @@ void showPage(int pg, battery data) {
 			tft.setCursor(x_pos, y_pos);
 			tft.print(" : ");
 			tft.setTextColor(c_param, c_backg); 
-      		displayBlock(data.ManufacturerData);
+      //displayBlock(data.ManufacturerData);
+      		tft.print("N/A");
       		
 		}
-}
-
-void setWaterMarkBackground(){
-	int x = 0;                          	//  set center coordinate for x axis    
-	int y = tft.getHeight()/3;      	    // set center coordinate for y axis
-	
-    SD.begin(PIN_SD_SS);
-	f = SD.open("wm.bmp");
-	BMPFile bmp(f);
-	bmp.draw(&tft,x, y);
-	f.close();	
 }
